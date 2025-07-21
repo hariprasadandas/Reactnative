@@ -1,28 +1,89 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  FlatList,
+  Dimensions,
+} from 'react-native';
+
+const { width } = Dimensions.get('window'); // Screen width for full banner
+
+// Banner Images
+const bannerImages = [
+  'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80',
+  'https://images.hindustantimes.com/img/2022/09/20/1600x900/international_cricket_council_1663660770590_1663660770855_1663660770855.JPG',
+  'https://ss-i.thgim.com/public/incoming/jo7sva/article69810184.ece/alternates/LANDSCAPE_1200/ENG%20vs%20IND%20Blog%204.png',
+  'https://d16f573ilcot6q.cloudfront.net/wp-content/uploads/2024/07/7-2.webp',
+];
 
 export default function Home({ navigation }) {
+  const flatListRef = useRef(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Auto-slide logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const nextIndex = (currentIndex + 1) % bannerImages.length;
+      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+      setCurrentIndex(nextIndex);
+    }, 3000); // Slide every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [currentIndex]);
+
+  // Add Logout Button to Header
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: 'Home',
+      headerRight: () => (
+        <TouchableOpacity onPress={() => navigation.replace('Login')} style={{ marginRight: 15 }}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
+
+  // Render Banner Images
+  const renderBannerItem = ({ item }) => (
+    <Image source={{ uri: item }} style={styles.bannerImage} resizeMode="cover" />
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-
-        {/* 🔼 Header with Banner */}
-        <View style={styles.header}>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80' }}
-            style={styles.banner}
-            resizeMode="cover"
+        {/* 🔼 Rolling Banner */}
+        <View style={styles.bannerContainer}>
+          <FlatList
+            ref={flatListRef}
+            data={bannerImages}
+            renderItem={renderBannerItem}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item, index) => index.toString()}
+            onMomentumScrollEnd={(event) => {
+              const index = Math.floor(event.nativeEvent.contentOffset.x / width);
+              setCurrentIndex(index);
+            }}
           />
+          {/* Dots Indicator */}
+          <View style={styles.dotsContainer}>
+            {bannerImages.map((_, index) => (
+              <View
+                key={index}
+                style={[styles.dot, currentIndex === index && styles.activeDot]}
+              />
+            ))}
+          </View>
           <Text style={styles.headerTitle}>Cric Heroes🏏</Text>
         </View>
 
-        {/* ✅ Welcome Card */}
-        <View style={styles.card}>
-          <Text style={styles.title}>🎉 Welcome Back!</Text>
-          <Text style={styles.subtitle}>You're successfully logged in.</Text>
-        </View>
-
-        {/* 🔥 Live Scores Section */}
+        {/* 🔥 Live Scores */}
         <View style={styles.liveScoreSection}>
           <Text style={styles.sectionTitle}>🔥 Live Scores</Text>
           {[
@@ -38,7 +99,7 @@ export default function Home({ navigation }) {
           ))}
         </View>
 
-        {/* 🏆 Teams Section */}
+        {/* 🏆 Teams */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🏆 Teams</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -57,7 +118,7 @@ export default function Home({ navigation }) {
           </ScrollView>
         </View>
 
-        {/* 🏏 Tournaments Section */}
+        {/* 🏏 Tournaments */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🏏 Tournaments</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -65,7 +126,7 @@ export default function Home({ navigation }) {
               { name: 'IPL 2025', icon: 'https://documents.iplt20.com/bcci/articles/1722448657_IPL%20_%20Thumbnail.PNG' },
               { name: 'World Cup', icon: 'https://images.saymedia-content.com/.image/t_share/MTc2MjczMDM5NTE4OTk5NzQy/2019-cricket-world-cup.jpg' },
               { name: 'Test Championship', icon: 'https://www.prabhatkhabar.com/wp-content/uploads/2024/01/wtc-trophy.jpg' },
-              { name: 'T20 World Cup' , icon: 'https://www.mtctutorials.com/wp-content/uploads/2021/10/ICC-T20-World-Cup-2021-Logo-Png.gif' },
+              { name: 'T20 World Cup', icon: 'https://www.mtctutorials.com/wp-content/uploads/2021/10/ICC-T20-World-Cup-2021-Logo-Png.gif' },
             ].map((tournament, index) => (
               <View style={styles.cardItem} key={index}>
                 <Image source={{ uri: tournament.icon }} style={styles.cardIcon} />
@@ -75,7 +136,7 @@ export default function Home({ navigation }) {
           </ScrollView>
         </View>
 
-        {/* 🥇 Men's Rankings */}
+        {/* Men's Rankings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🥇 Men's Rankings</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -95,7 +156,7 @@ export default function Home({ navigation }) {
           </ScrollView>
         </View>
 
-        {/* 🥇 Women's Rankings */}
+        {/* Women's Rankings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🥇 Women's Rankings</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -114,49 +175,46 @@ export default function Home({ navigation }) {
             ))}
           </ScrollView>
         </View>
-
-        {/* 🔴 Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={() => navigation.replace('Login')}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-
       </ScrollView>
 
-      {/* 🔽 Static Footer */}
+      {/* 🔽 Footer Navigation */}
       <View style={styles.footer}>
-        <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/25/25694.png' }}
-          style={styles.footerIcon}
-        />
-        <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/174/174857.png' }}
-          style={styles.footerIcon}
-        />
-        <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/1384/1384060.png' }}
-          style={styles.footerIcon}
-        />
+        <TouchableOpacity onPress={() => navigation.navigate('Matches')}>
+          <Image source={{ uri: 'https://i.pinimg.com/originals/e0/86/0f/e0860f5cc52af7d6ba5ffdfc46c9642d.jpg' }} style={styles.footerIcon} />
+          <Text style={styles.footerText}>Matches</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Tournaments')}>
+          <Image source={{ uri: 'https://www.freevector.com/uploads/vector/preview/30774/Cricket_Championship_Logo.jpg' }} style={styles.footerIcon} />
+          <Text style={styles.footerText}>Tournaments</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+          <Image source={{ uri: 'https://cdn-icons-png.flaticon.com/512/847/847969.png' }} style={styles.footerIcon} />
+          <Text style={styles.footerText}>Profile</Text>
+        </TouchableOpacity>
       </View>
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#EEF2F5' },
-  header: { width: '100%', height: 180, marginBottom: 20, position: 'relative' },
-  banner: { width: '100%', height: '100%', borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  logoutText: { fontSize: 16, color: '#EF4444', fontWeight: '600' },
+
+  // Banner
+  bannerContainer: { width, height: 180, position: 'relative', marginBottom: 20 },
+  bannerImage: { width, height: '100%' },
   headerTitle: {
     position: 'absolute', bottom: 10, left: 20, fontSize: 22, fontWeight: '700', color: '#fff',
     textShadowColor: '#000', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 6,
   },
-  card: {
-    marginHorizontal: 20, padding: 25, backgroundColor: '#fff', borderRadius: 16,
-    elevation: 10, shadowColor: '#000', shadowOpacity: 0.1, shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8, alignItems: 'center', marginBottom: 20,
+  dotsContainer: {
+    position: 'absolute', bottom: 8, alignSelf: 'center', flexDirection: 'row',
   },
-  title: { fontSize: 26, fontWeight: '700', color: '#333', marginBottom: 10, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: '#555', textAlign: 'center' },
+  dot: {
+    width: 8, height: 8, borderRadius: 4, backgroundColor: '#ccc', marginHorizontal: 4,
+  },
+  activeDot: { backgroundColor: '#fff' },
+
   liveScoreSection: { marginHorizontal: 20, marginBottom: 20 },
   liveCard: {
     backgroundColor: '#fff', padding: 14, borderRadius: 12, marginBottom: 10,
@@ -175,15 +233,11 @@ const styles = StyleSheet.create({
   },
   cardIcon: { width: 60, height: 60, marginBottom: 10, borderRadius: 30 },
   cardText: { fontSize: 13, color: '#333', textAlign: 'center', fontWeight: '500' },
-  logoutButton: {
-    backgroundColor: '#EF4444', marginHorizontal: 20, paddingVertical: 14, borderRadius: 10,
-    alignItems: 'center', marginBottom: 20,
-  },
-  logoutButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   footer: {
     position: 'absolute', bottom: 0, backgroundColor: '#fff', width: '100%',
-    paddingVertical: 14, borderTopWidth: 1, borderColor: '#ddd', flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    paddingVertical: 8, borderTopWidth: 1, borderColor: '#ddd', flexDirection: 'row',
+    justifyContent: 'space-around',
   },
-  footerIcon: { width: 28, height: 28 },
+  footerIcon: { width: 28, height: 28, alignSelf: 'center' },
+  footerText: { fontSize: 12, textAlign: 'center', marginTop: 4, color: '#333' },
 });
