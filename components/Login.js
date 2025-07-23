@@ -2,18 +2,29 @@ import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
 
 export default function Login({ navigation }) {
-  const { control, handleSubmit, formState: { errors } } = useForm();
+  const { control, handleSubmit, formState: { errors } } = useForm({
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
   const onSubmit = async (data) => {
-    const storedUser = await AsyncStorage.getItem('user');
-    const parsedUser = storedUser ? JSON.parse(storedUser) : null;
-
-    if (parsedUser?.email === data.email && parsedUser?.password === data.password) {
+    try {
+      await signInWithEmailAndPassword(auth, data.email, data.password);
       navigation.replace('Home');
-    } else {
-      Alert.alert('Login Failed', 'Invalid email or password');
+    } catch (error) {
+      let message = error.message;
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = 'Invalid email or password';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Invalid email address.';
+      }
+      Alert.alert('Login Failed', message);
     }
   };
 
@@ -65,7 +76,7 @@ export default function Login({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-          <Text style={styles.link}>Don’t have an account? <Text style={{ fontWeight: 'bold' }}>Signup</Text></Text>
+          <Text style={styles.link}>Don't have an account? <Text style={{ fontWeight: 'bold' }}>Signup</Text></Text>
         </TouchableOpacity>
       </View>
     </View>
