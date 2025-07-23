@@ -5,7 +5,6 @@ import SignUp from './components/SignUp';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
 import Home from './components/Home';
-import ProfileCreation from './components/ProfileCreation';
 
 const Stack = createNativeStackNavigator();
 
@@ -17,7 +16,6 @@ export default function App() {
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
         <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="ProfileCreation" component={ProfileCreation} />
       </Stack.Navigator>
     </NavigationContainer>
   );
