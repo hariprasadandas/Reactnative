@@ -24,7 +24,7 @@ export default function Home({ navigation }) {
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Auto-slide
+  // Auto-slide for banner
   useEffect(() => {
     const interval = setInterval(() => {
       const nextIndex = (currentIndex + 1) % bannerImages.length;
@@ -34,15 +34,10 @@ export default function Home({ navigation }) {
     return () => clearInterval(interval);
   }, [currentIndex]);
 
-  // Header Logout
+  // Header Title
   React.useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: 'Home',
-      headerRight: () => (
-        <TouchableOpacity onPress={() => navigation.replace('Login')} style={{ marginRight: 15 }}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-      ),
+      title: 'Home',
     });
   }, [navigation]);
 
@@ -52,7 +47,7 @@ export default function Home({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView>
         {/* 🔼 Rolling Banner */}
         <View style={styles.bannerContainer}>
           <FlatList
@@ -76,7 +71,6 @@ export default function Home({ navigation }) {
               />
             ))}
           </View>
-          <Text style={styles.headerTitle}>Cric Heroes🏏</Text>
         </View>
 
         {/* 🔥 Live Scores */}
@@ -98,7 +92,7 @@ export default function Home({ navigation }) {
         {/* 🏆 Teams */}
         <View style={styles.section}>
           <TouchableOpacity onPress={() => navigation.navigate('Teams')}>
-            <Text style={[styles.sectionTitle, { color: '#000000ff' }]}>🏆 Teams </Text>
+            <Text style={[styles.sectionTitle, { color: '#000000ff' }]}>🏆 Teams</Text>
           </TouchableOpacity>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {[
@@ -119,7 +113,7 @@ export default function Home({ navigation }) {
         {/* 🏏 Tournaments */}
         <View style={styles.section}>
           <TouchableOpacity onPress={() => navigation.navigate('Tournaments')}>
-            <Text style={[styles.sectionTitle, { color: '#000000ff' }]}>🏏 Tournaments </Text>
+            <Text style={[styles.sectionTitle, { color: '#000000ff' }]}>🏏 Tournaments</Text>
           </TouchableOpacity>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {[
@@ -127,7 +121,7 @@ export default function Home({ navigation }) {
               { name: 'World Cup', icon: 'https://images.saymedia-content.com/.image/t_share/MTc2MjczMDM5NTE4OTk5NzQy/2019-cricket-world-cup.jpg' },
               { name: 'Test Championship', icon: 'https://www.prabhatkhabar.com/wp-content/uploads/2024/01/wtc-trophy.jpg' },
               { name: 'T20 World Cup', icon: 'https://www.mtctutorials.com/wp-content/uploads/2021/10/ICC-T20-World-Cup-2021-Logo-Png.gif' },
-               { name: 'Champions Trophy', icon: 'https://assets.telegraphindia.com/abp/2024/Jul/1721396539_champions-trophy.jpg' },
+              { name: 'Champions Trophy', icon: 'https://assets.telegraphindia.com/abp/2024/Jul/1721396539_champions-trophy.jpg' },
             ].map((tournament, index) => (
               <View style={styles.cardItem} key={index}>
                 <Image source={{ uri: tournament.icon }} style={styles.cardIcon} />
@@ -137,7 +131,7 @@ export default function Home({ navigation }) {
           </ScrollView>
         </View>
 
-        {/* Men's Rankings */}
+        {/* 🥇 Men's Rankings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🥇 Men's Rankings</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -157,7 +151,7 @@ export default function Home({ navigation }) {
           </ScrollView>
         </View>
 
-        {/* Women's Rankings */}
+        {/* 🥇 Women's Rankings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🥇 Women's Rankings</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -176,40 +170,17 @@ export default function Home({ navigation }) {
             ))}
           </ScrollView>
         </View>
-      </ScrollView>
+        
 
-      {/* 🔽 Footer Navigation */}
-      <View style={styles.footer}>
-        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-          <Image source={{ uri: 'https://logowik.com/content/uploads/images/795_home.jpg' }} style={styles.footerIcon} />
-          <Text style={styles.footerText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Teams')}>
-          <Image source={{ uri: 'https://i.pinimg.com/originals/e0/86/0f/e0860f5cc52af7d6ba5ffdfc46c9642d.jpg' }} style={styles.footerIcon} />
-          <Text style={styles.footerText}>Teams</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Tournaments')}>
-          <Image source={{ uri: 'https://www.freevector.com/uploads/vector/preview/30774/Cricket_Championship_Logo.jpg' }} style={styles.footerIcon} />
-          <Text style={styles.footerText}>Tournaments</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-          <Image source={{ uri: 'https://cdn-icons-png.flaticon.com/512/847/847969.png' }} style={styles.footerIcon} />
-          <Text style={styles.footerText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#EEF2F5' },
-  logoutText: { fontSize: 16, color: '#EF4444', fontWeight: '600' },
   bannerContainer: { width, height: 180, position: 'relative', marginBottom: 20 },
   bannerImage: { width, height: '100%' },
-  headerTitle: {
-    position: 'absolute', bottom: 10, left: 20, fontSize: 22, fontWeight: '700', color: '#fff',
-    textShadowColor: '#000', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 6,
-  },
   dotsContainer: { position: 'absolute', bottom: 8, alignSelf: 'center', flexDirection: 'row' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ccc', marginHorizontal: 4 },
   activeDot: { backgroundColor: '#fff' },
@@ -231,11 +202,4 @@ const styles = StyleSheet.create({
   },
   cardIcon: { width: 60, height: 60, marginBottom: 10, borderRadius: 30 },
   cardText: { fontSize: 13, color: '#333', textAlign: 'center', fontWeight: '500' },
-  footer: {
-    position: 'absolute', bottom: 0, backgroundColor: '#fff', width: '100%',
-    paddingVertical: 8, borderTopWidth: 1, borderColor: '#ddd', flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  footerIcon: { width: 28, height: 28, alignSelf: 'center' },
-  footerText: { fontSize: 12, textAlign: 'center', marginTop: 4, color: '#333' },
 });
