@@ -11,7 +11,7 @@ export default function Login({ navigation }) {
     const parsedUser = storedUser ? JSON.parse(storedUser) : null;
 
     if (parsedUser?.email === data.email && parsedUser?.password === data.password) {
-      navigation.replace('Main');
+      navigation.replace('Home');
     } else {
       Alert.alert('Login Failed', 'Invalid email or password');
     }
