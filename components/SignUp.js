@@ -8,17 +8,34 @@ export default function SignUp({ navigation }) {
   const passwordValue = watch('password');
 
   const onSubmit = async (data) => {
-    if (data.password !== data.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
+    try {
+      if (data.password !== data.confirmPassword) {
+        Alert.alert('Error', 'Passwords do not match');
+        return;
+      }
 
-    await AsyncStorage.setItem('user', JSON.stringify({
-      email: data.email,
-      password: data.password
-    }));
-    Alert.alert('Success', 'Account created. Please login.');
-    navigation.navigate('Login');
+      // Get existing users from AsyncStorage
+      const storedUsers = await AsyncStorage.getItem('users');
+      let users = storedUsers ? JSON.parse(storedUsers) : [];
+
+      // Check if email already exists
+      if (users.some(user => user.email === data.email)) {
+        Alert.alert('Error', 'This email is already registered. Please log in or use a different email.');
+        return;
+      }
+
+      // Add new user to the array
+      const newUser = { email: data.email, password: data.password };
+      users = [...users, newUser];
+
+      // Save updated users array to AsyncStorage
+      await AsyncStorage.setItem('users', JSON.stringify(users));
+
+      Alert.alert('Success', 'Account created. Please login.');
+      navigation.navigate('Login');
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
   };
 
   return (

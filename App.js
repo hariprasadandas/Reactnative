@@ -7,6 +7,10 @@ import ForgotPassword from './components/ForgotPassword';
 import Home from './components/Home';
 import Tournaments from './components/Tournaments';
 import Teams from './components/Teams';
+import Admin from './components/admin/Admin';
+import AllTeams from './components/admin/AllTeams';
+import ManageTeams from './components/admin/ManageTeams';
+import Matches from './components/admin/Matches';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,7 +24,10 @@ export default function App() {
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Tournaments" component={Tournaments} />
         <Stack.Screen name="Teams" component={Teams} />
-
+        <Stack.Screen name="Admin" component={Admin}/>
+        <Stack.Screen name="AllTeams" component={AllTeams}/>
+        <Stack.Screen name="ManageTeams" component={ManageTeams}/>
+        <Stack.Screen name="Matches" component={Matches} />
       </Stack.Navigator>
     </NavigationContainer>
   );

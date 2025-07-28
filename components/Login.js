@@ -1,19 +1,65 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Login({ navigation }) {
-  const { control, handleSubmit, formState: { errors } } = useForm();
+  const { control, handleSubmit, formState: { errors }, reset } = useForm();
+
+  // Check if user is already logged in on mount
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const loggedInEmail = await AsyncStorage.getItem('loggedInEmail');
+        if (loggedInEmail) {
+          if (loggedInEmail === 'admin@gmail.com') {
+            navigation.replace('Admin');
+          } else {
+            navigation.replace('Home');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking login status:', error);
+      }
+    };
+    checkLoginStatus();
+  }, [navigation]);
 
   const onSubmit = async (data) => {
-    const storedUser = await AsyncStorage.getItem('user');
-    const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+    try {
+      const storedUsers = await AsyncStorage.getItem('users');
+      const users = storedUsers ? JSON.parse(storedUsers) : [];
 
-    if (parsedUser?.email === data.email && parsedUser?.password === data.password) {
-      navigation.replace('Home');
-    } else {
-      Alert.alert('Login Failed', 'Invalid email or password');
+      // Find user with matching email and password
+      const matchedUser = users.find(
+        user => user.email === data.email && user.password === data.password
+      );
+
+      if (matchedUser) {
+        // Store logged-in email in AsyncStorage
+        await AsyncStorage.setItem('loggedInEmail', data.email);
+        // Navigate based on email
+        if (data.email === 'admin@gmail.com') {
+          navigation.replace('Admin');
+        } else {
+          navigation.replace('Home');
+        }
+      } else {
+        Alert.alert('Login Failed', 'Invalid email or password');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
+  };
+
+  // Logout function to clear session
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('loggedInEmail');
+      reset(); // Clear form fields
+      navigation.replace('Login'); // Navigate back to login
+    } catch (error) {
+      console.error('Error logging out:', error);
     }
   };
 
@@ -84,8 +130,8 @@ const styles = StyleSheet.create({
     padding: 25,
     backgroundColor: '#fff',
     borderRadius: 16,
-    elevation: 10, // for Android shadow
-    shadowColor: '#000', // iOS shadow
+    elevation: 10,
+    shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
