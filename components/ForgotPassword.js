@@ -1,28 +1,18 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../firebase';
 
 export default function ForgotPassword({ navigation }) {
   const [email, setEmail] = useState('');
 
   const handlePasswordRecovery = async () => {
-    if (!email) {
-      Alert.alert('Error', 'Please enter your email address.');
-      return;
-    }
-    try {
-      await sendPasswordResetEmail(auth, email);
-      Alert.alert('Password Reset', 'A password reset email has been sent. Please check your inbox.');
-    } catch (error) {
-      let message = error.message;
-      if (error.code === 'auth/user-not-found') {
-        message = 'No user found with this email.';
-      } else if (error.code === 'auth/invalid-email') {
-        message = 'Invalid email address.';
-      }
-      Alert.alert('Error', message);
+    const storedUser = await AsyncStorage.getItem('user');
+    const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+
+    if (parsedUser?.email === email) {
+      Alert.alert('Password Recovery', `Your password is: ${parsedUser.password}`);
+    } else {
+      Alert.alert('Error', 'Email not found!');
     }
   };
 
