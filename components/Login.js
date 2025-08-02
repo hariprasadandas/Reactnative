@@ -32,7 +32,7 @@ export default function Login({ navigation }) {
               placeholder="Email"
               style={styles.input}
               onChangeText={onChange}
-              value={value}
+              value={value || ''}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -50,7 +50,7 @@ export default function Login({ navigation }) {
               secureTextEntry
               style={styles.input}
               onChangeText={onChange}
-              value={value}
+              value={value || ''}
             />
           )}
         />
@@ -65,7 +65,7 @@ export default function Login({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-          <Text style={styles.link}>Don’t have an account? <Text style={{ fontWeight: 'bold' }}>Signup</Text></Text>
+          <Text style={styles.link}>Don't have an account? <Text style={{ fontWeight: 'bold' }}>Signup</Text></Text>
         </TouchableOpacity>
       </View>
     </View>

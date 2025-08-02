@@ -95,13 +95,13 @@ export default function Community() {
             <TextInput
               style={styles.input}
               placeholder="Enter name"
-              value={newItem}
+              value={newItem || ''}
               onChangeText={setNewItem}
             />
             <TextInput
               style={styles.input}
               placeholder="Enter Image URL (Optional)"
-              value={imageUrl}
+              value={imageUrl || ''}
               onChangeText={setImageUrl}
             />
             <View style={styles.modalButtons}>

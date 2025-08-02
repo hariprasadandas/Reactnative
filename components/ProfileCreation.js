@@ -52,6 +52,12 @@ export default function ProfileCreation({ route, navigation }) {
     }
   };
 
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      title: 'Profile',
+    });
+  }, [navigation]);
+
   return (
     <View style={styles.container}>
       <View style={styles.card}>
@@ -110,6 +116,27 @@ export default function ProfileCreation({ route, navigation }) {
           <Text style={styles.saveButtonText}>Complete Profile</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity
+        onPress={async () => {
+          await auth.signOut();
+          navigation.replace('Login');
+        }}
+        style={{
+          alignSelf: 'center',
+          marginVertical: 20,
+          paddingVertical: 12,
+          paddingHorizontal: 32,
+          backgroundColor: '#E63946',
+          borderRadius: 24,
+          elevation: 3,
+          shadowColor: '#000',
+          shadowOpacity: 0.1,
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 4,
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 20, letterSpacing: 1, fontFamily: 'Montserrat-Bold' }}>Logout</Text>
+      </TouchableOpacity>
     </View>
   );
 }
