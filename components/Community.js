@@ -10,7 +10,7 @@ import {
   TextInput,
 } from 'react-native';
 
-export default function Community() {
+export default function Community({ navigation }) {
   // State for sections
   const [grounds, setGrounds] = useState([
     { name: 'Eden Gardens', icon: 'https://i.ibb.co/xsS3zRj/ground1.jpg' },
@@ -80,7 +80,7 @@ export default function Community() {
     <View style={styles.container}>
       <Text style={styles.header}>Community</Text>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 50 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         {renderSection('🏟 Grounds', grounds, 'Grounds')}
         {renderSection('🎤 Commentators', commentators, 'Commentators')}
         {renderSection('🏏 Coaches', coaches, 'Coaches')}

@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'reac
 import { useForm, Controller } from 'react-hook-form';
 import { db, auth } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileCreation({ route, navigation }) {
   const { email, name, photoURL } = route.params || {};
@@ -34,7 +35,7 @@ export default function ProfileCreation({ route, navigation }) {
       }, { merge: true }); // Use merge to avoid overwriting existing data
 
       Alert.alert('Success', 'Profile created successfully!');
-      navigation.replace('Home');
+      navigation.replace('Main');
     } catch (error) {
       console.error('Profile Creation Error:', error);
       
@@ -59,7 +60,7 @@ export default function ProfileCreation({ route, navigation }) {
   }, [navigation]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: 120 }]}>
       <View style={styles.card}>
         <Text style={styles.title}>Complete Your Profile 🚀</Text>
         <Text style={styles.subtitle}>Add your details to get started</Text>
@@ -118,8 +119,15 @@ export default function ProfileCreation({ route, navigation }) {
       </View>
       <TouchableOpacity
         onPress={async () => {
-          await auth.signOut();
-          navigation.replace('Login');
+          try {
+            await auth.signOut();
+            await AsyncStorage.removeItem('loggedInEmail');
+            navigation.replace('Login');
+          } catch (error) {
+            console.error('Logout error:', error);
+            // Still navigate to login even if there's an error
+            navigation.replace('Login');
+          }
         }}
         style={{
           alignSelf: 'center',

@@ -1,19 +1,64 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 export default function Login({ navigation }) {
-  const { control, handleSubmit, formState: { errors } } = useForm();
+  const { control, handleSubmit, formState: { errors }, reset } = useForm();
+
+  // Check if user is already logged in on mount
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const loggedInEmail = await AsyncStorage.getItem('loggedInEmail');
+        if (loggedInEmail) {
+                  if (loggedInEmail === 'admin@gmail.com') {
+          navigation.replace('Admin');
+        } else {
+          navigation.replace('Main');
+        }
+        }
+      } catch (error) {
+        console.error('Error checking login status:', error);
+      }
+    };
+    checkLoginStatus();
+  }, [navigation]);
 
   const onSubmit = async (data) => {
-    const storedUser = await AsyncStorage.getItem('user');
-    const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+    try {
+      // Authenticate user with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+      // Store logged-in email in AsyncStorage (for session)
+      await AsyncStorage.setItem('loggedInEmail', data.email);
+      // Navigate based on email
+      if (data.email === 'admin@gmail.com') {
+        navigation.replace('Admin');
+      } else {
+        navigation.replace('Main');
+      }
+    } catch (error) {
+      let message = 'Something went wrong. Please try again.';
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = 'Invalid email or password';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Invalid email address.';
+      }
+      Alert.alert('Login Failed', message);
+    }
+  };
 
-    if (parsedUser?.email === data.email && parsedUser?.password === data.password) {
-      navigation.replace('Main');
-    } else {
-      Alert.alert('Login Failed', 'Invalid email or password');
+  // Logout function to clear session
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('loggedInEmail');
+      reset(); // Clear form fields
+      navigation.replace('Login'); // Navigate back to login
+    } catch (error) {
+      console.error('Error logging out:', error);
     }
   };
 
@@ -32,7 +77,7 @@ export default function Login({ navigation }) {
               placeholder="Email"
               style={styles.input}
               onChangeText={onChange}
-              value={value || ''}
+              value={value ??  ''}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -50,7 +95,7 @@ export default function Login({ navigation }) {
               secureTextEntry
               style={styles.input}
               onChangeText={onChange}
-              value={value || ''}
+              value={value ?? ''}
             />
           )}
         />
@@ -65,7 +110,7 @@ export default function Login({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-          <Text style={styles.link}>Don't have an account? <Text style={{ fontWeight: 'bold' }}>Signup</Text></Text>
+          <Text style={styles.link}>Don’t have an account? <Text style={{ fontWeight: 'bold' }}>Signup</Text></Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -84,8 +129,8 @@ const styles = StyleSheet.create({
     padding: 25,
     backgroundColor: '#fff',
     borderRadius: 16,
-    elevation: 10, // for Android shadow
-    shadowColor: '#000', // iOS shadow
+    elevation: 10,
+    shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,

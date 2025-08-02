@@ -35,7 +35,7 @@ export default function Tournaments({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         <Text style={styles.pageTitle}>🏏 Tournaments</Text>
 
         {tournamentsList.map((item, index) => (

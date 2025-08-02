@@ -1,193 +1,111 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet, Platform } from 'react-native';
+import React from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { useForm, Controller } from 'react-hook-form';
 import { auth, db } from '../firebase';
-import { signInWithCredential, GoogleAuthProvider, getAdditionalUserInfo } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import * as WebBrowser from 'expo-web-browser';
-
-// Complete the auth session
-WebBrowser.maybeCompleteAuthSession();
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignUp({ navigation }) {
-  const [isLoading, setIsLoading] = useState(false);
+  const { control, handleSubmit, watch, formState: { errors } } = useForm();
+  const passwordValue = watch('password');
 
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+  const onSubmit = async (data) => {
     try {
-      let result;
-      let additionalUserInfo;
-      
-      if (Platform.OS === 'web') {
-        // For web, use Firebase popup
-        const { signInWithPopup } = await import('firebase/auth');
-        const provider = new GoogleAuthProvider();
-        result = await signInWithPopup(auth, provider);
-        additionalUserInfo = getAdditionalUserInfo(result);
-      } else {
-        // For mobile, provide better user guidance
-        Alert.alert(
-          'Google Sign-In on Mobile',
-          'For the best experience with Google Sign-In, we recommend using the web version of this app. Would you like to continue with the mobile version or try the web version?',
-          [
-            {
-              text: 'Try Mobile Version',
-              onPress: async () => {
-                try {
-                  // Create a simple OAuth URL for Google Sign-In
-                  const clientId = '884643516000-4271ae90f5b24e758dbd05.apps.googleusercontent.com';
-                  const redirectUri = 'https://crickhub-153fc.firebaseapp.com/__/auth/handler';
-                  const scope = 'openid profile email';
-                  
-                  const authUrl = 'https://accounts.google.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code';
-                  
-                  // Open the auth URL in the device's browser
-                  const result = await WebBrowser.openAuthSessionAsync(
-                    authUrl,
-                    'crickhub://auth'
-                  );
-                  
-                  if (result.type === 'success') {
-                    Alert.alert(
-                      'Authentication Completed',
-                      'Great! You have successfully signed in with Google. Please return to the app.',
-                      [
-                        { 
-                          text: 'OK', 
-                          onPress: () => {
-                            setIsLoading(false);
-                            Alert.alert(
-                              'Welcome!',
-                              'For the best experience, please use the web version of this app for full functionality.',
-                              [{ text: 'OK' }]
-                            );
-                          }
-                        }
-                      ]
-                    );
-                  } else if (result.type === 'cancel') {
-                    Alert.alert(
-                      'Sign-In Cancelled',
-                      'You cancelled the Google Sign-In process. You can try again or use the web version for the best experience.',
-                      [
-                        { text: 'Try Again', onPress: () => setIsLoading(false) },
-                        { 
-                          text: 'Use Web Version', 
-                          onPress: () => {
-                            setIsLoading(false);
-                            Alert.alert(
-                              'Web Version', 
-                              'Please visit the web version of this app for the best Google Sign-In experience.',
-                              [{ text: 'OK' }]
-                            );
-                          }
-                        }
-                      ]
-                    );
-                  }
-                } catch (mobileError) {
-                  console.error('Mobile auth error:', mobileError);
-                  Alert.alert(
-                    'Mobile Sign-In Error',
-                    'There was an issue with the mobile sign-in. Please try the web version for the best experience.',
-                    [
-                      { text: 'OK', onPress: () => setIsLoading(false) },
-                      { 
-                        text: 'Try Web Version', 
-                        onPress: () => {
-                          setIsLoading(false);
-                          Alert.alert(
-                            'Web Version', 
-                            'Please visit the web version of this app for the best Google Sign-In experience.',
-                            [{ text: 'OK' }]
-                          );
-                        }
-                      }
-                    ]
-                  );
-                }
-              }
-            },
-            {
-              text: 'Use Web Version',
-              onPress: () => {
-                setIsLoading(false);
-                Alert.alert(
-                  'Web Version', 
-                  'Please visit the web version of this app for the best Google Sign-In experience.',
-                  [{ text: 'OK' }]
-                );
-              }
-            },
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => setIsLoading(false)
-            }
-          ]
-        );
-      return;
-    }
+      if (data.password !== data.confirmPassword) {
+        Alert.alert('Error', 'Passwords do not match');
+        return;
+      }
 
-      // Check if this is a new user
-      if (additionalUserInfo.isNewUser) {
-        // New user - redirect to profile creation
-        Alert.alert('Welcome!', 'Please complete your profile.');
-        navigation.navigate('ProfileCreation', { 
-          email: result.user.email,
-          name: result.user.displayName,
-          photoURL: result.user.photoURL
-        });
-      } else {
-        // Existing user - redirect to home
-        Alert.alert('Welcome Back!', 'Successfully signed in.');
-        navigation.replace('Home');
-      }
+      // Register user with Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+
+      // Optionally store user info in Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        email: data.email,
+        createdAt: new Date().toISOString(),
+      });
+
+      Alert.alert('Success', 'Account created. Please login.');
+      navigation.navigate('Login');
     } catch (error) {
-      console.error('Google Sign-In Error:', error);
-      let errorMessage = 'Failed to sign in with Google. Please try again.';
-      
-      if (error.code === 'auth/popup-closed-by-user' || error.message === 'Google Sign-In was cancelled') {
-        errorMessage = 'Sign-in was cancelled. Please try again.';
-      } else if (error.code === 'auth/popup-blocked') {
-        errorMessage = 'Pop-up was blocked. Please allow pop-ups and try again.';
-      } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = 'Google Sign-In is not enabled. Please contact support to enable it.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      let message = 'Something went wrong. Please try again.';
+      if (error.code === 'auth/email-already-in-use') {
+        message = 'This email is already registered. Please log in or use a different email.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Invalid email address.';
+      } else if (error.code === 'auth/weak-password') {
+        message = 'Password should be at least 6 characters.';
       }
-      
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', message);
     }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.title}>Welcome to Cric Heroes 🏏</Text>
-        <Text style={styles.subtitle}>
-          {Platform.OS === 'web' 
-            ? 'Sign in with your Google account to get started'
-            : 'Sign in with your Google account (Web recommended for best experience)'
-          }
-        </Text>
-        
-        <TouchableOpacity 
-          style={[styles.googleButton, isLoading && styles.disabledButton]} 
-          onPress={handleGoogleSignIn}
-          disabled={isLoading}
-        >
-          <Text style={styles.googleButtonText}>
-            {isLoading ? 'Signing in...' : 'Continue with Google'}
-          </Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>Create Account 🎉</Text>
+        <Text style={styles.subtitle}>Signup to get started</Text>
 
-        {Platform.OS !== 'web' && (
-          <Text style={styles.mobileNote}>
-            💡 Tip: For the best experience, please use the web version
-          </Text>
-        )}
+        <Controller
+          control={control}
+          name="email"
+          rules={{ required: 'Email is required' }}
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              placeholder="Email"
+              style={styles.input}
+              onChangeText={onChange}
+              value={value}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          )}
+        />
+        {errors.email && <Text style={styles.error}>{errors.email.message}</Text>}
+
+        <Controller
+          control={control}
+          name="password"
+          rules={{
+            required: 'Password is required',
+            minLength: { value: 6, message: 'Minimum 6 characters' },
+          }}
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              placeholder="Password"
+              secureTextEntry
+              style={styles.input}
+              onChangeText={onChange}
+              value={value}
+            />
+          )}
+        />
+        {errors.password && <Text style={styles.error}>{errors.password.message}</Text>}
+
+        <Controller
+          control={control}
+          name="confirmPassword"
+          rules={{
+            required: 'Please confirm password',
+            validate: value => value === passwordValue || 'Passwords do not match',
+          }}
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              placeholder="Confirm Password"
+              secureTextEntry
+              style={styles.input}
+              onChangeText={onChange}
+              value={value}
+            />
+          )}
+        />
+        {errors.confirmPassword && <Text style={styles.error}>{errors.confirmPassword.message}</Text>}
+
+        <TouchableOpacity style={styles.signupButton} onPress={handleSubmit(onSubmit)}>
+          <Text style={styles.signupButtonText}>Signup</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
           <Text style={styles.link}>Already have an account? <Text style={{ fontWeight: 'bold' }}>Login</Text></Text>
@@ -225,33 +143,34 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#777',
-    marginBottom: 30,
+    marginBottom: 20,
     textAlign: 'center',
   },
-  googleButton: {
-    backgroundColor: '#4285F4',
-    paddingVertical: 16,
+  input: {
+    backgroundColor: '#F5F7FA',
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 12,
+    fontSize: 16,
+    borderColor: '#ccc',
+    borderWidth: 1,
+  },
+  error: {
+    color: 'red',
+    marginBottom: 8,
+    fontSize: 13,
+  },
+  signupButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
-    marginBottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    marginTop: 10,
   },
-  disabledButton: {
-    backgroundColor: '#9CA3AF',
-  },
-  googleButtonText: {
+  signupButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    marginLeft: 8,
-  },
-  mobileNote: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 15,
-    fontStyle: 'italic',
   },
   link: {
     marginTop: 20,

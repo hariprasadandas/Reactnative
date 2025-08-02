@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { auth } from '../firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -48,7 +49,7 @@ export default function Home({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         {/* 🔼 Rolling Banner */}
         <View style={styles.bannerContainer}>
           <FlatList
@@ -173,8 +174,15 @@ export default function Home({ navigation }) {
         </View>
         <TouchableOpacity
           onPress={async () => {
-            await auth.signOut();
-            navigation.replace('Login');
+            try {
+              await auth.signOut();
+              await AsyncStorage.removeItem('loggedInEmail');
+              navigation.replace('Login');
+            } catch (error) {
+              console.error('Logout error:', error);
+              // Still navigate to login even if there's an error
+              navigation.replace('Login');
+            }
           }}
           style={{
             alignSelf: 'center',

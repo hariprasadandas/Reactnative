@@ -40,7 +40,7 @@ export default function Teams({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         <Text style={styles.pageTitle}>🏏 Teams</Text>
 
         {teamsList.map((item, index) => (
