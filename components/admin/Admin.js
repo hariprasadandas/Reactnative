@@ -1,17 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, FlatList, Image, Alert, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth, db } from '../../firebase';
+import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import Footer from './Footer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Admin({ navigation }) {
   const [users, setUsers] = useState([]);
   const [showUsers, setShowUsers] = useState(false);
 
-  // Fetch users from AsyncStorage
+  // Fetch users from Firestore
   const fetchData = useCallback(async () => {
     try {
-      const storedUsers = await AsyncStorage.getItem('users');
-      setUsers(storedUsers ? JSON.parse(storedUsers) : []);
+      const usersRef = collection(db, 'users');
+      const querySnapshot = await getDocs(usersRef);
+      const usersData = [];
+      querySnapshot.forEach((doc) => {
+        usersData.push({ id: doc.id, ...doc.data() });
+      });
+      setUsers(usersData);
     } catch (error) {
       console.error('Error fetching data:', error);
       Alert.alert('Error', 'Failed to load data. Please try again.');
@@ -24,25 +31,23 @@ export default function Admin({ navigation }) {
     return unsubscribe;
   }, [fetchData, navigation]);
 
-  // Save users to AsyncStorage
-  const saveUsers = useCallback(async (updatedUsers) => {
+  // Verify player in Firestore
+  const verifyPlayer = useCallback(async (userId) => {
     try {
-      await AsyncStorage.setItem('users', JSON.stringify(updatedUsers));
-      setUsers([...updatedUsers]);
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, { verified: true });
+      
+      // Update local state
+      const updatedUsers = users.map(user =>
+        user.id === userId ? { ...user, verified: true } : user
+      );
+      setUsers(updatedUsers);
+      Alert.alert('Success', 'Player verified');
     } catch (error) {
-      console.error('Error saving users:', error);
-      Alert.alert('Error', 'Failed to save users. Please try again.');
+      console.error('Error verifying player:', error);
+      Alert.alert('Error', 'Failed to verify player. Please try again.');
     }
-  }, []);
-
-  // Verify player
-  const verifyPlayer = useCallback((userEmail) => {
-    const updatedUsers = users.map(user =>
-      user.email === userEmail ? { ...user, verified: true } : user
-    );
-    saveUsers(updatedUsers);
-    Alert.alert('Success', 'Player verified');
-  }, [users, saveUsers]);
+  }, [users]);
 
   // Header with Logout
   React.useLayoutEffect(() => {
@@ -60,7 +65,20 @@ export default function Admin({ navigation }) {
       },
       headerRight: () => (
         <TouchableOpacity
-          onPress={() => navigation.replace('Login')}
+          onPress={async () => {
+            try {
+              // Sign out from Firebase Auth
+              await auth.signOut();
+              // Clear AsyncStorage session
+              await AsyncStorage.removeItem('loggedInEmail');
+              console.log('Successfully logged out and cleared session');
+              navigation.replace('Login');
+            } catch (error) {
+              console.error('Error signing out:', error);
+              // Even if there's an error, try to navigate to login
+              navigation.replace('Login');
+            }
+          }}
           style={styles.headerButton}
           activeOpacity={0.7}
         >
@@ -86,7 +104,7 @@ export default function Admin({ navigation }) {
       {!item.verified && item.email !== 'admin@gmail.com' && (
         <TouchableOpacity
           style={styles.verifyButton}
-          onPress={() => verifyPlayer(item.email)}
+          onPress={() => verifyPlayer(item.id)}
           activeOpacity={0.7}
         >
           <Text style={styles.verifyButtonText}>Verify</Text>
@@ -150,14 +168,17 @@ export default function Admin({ navigation }) {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={async () => {
-                const storedTeams = await AsyncStorage.getItem('teams');
-                const teams = storedTeams ? JSON.parse(storedTeams) : [];
-                navigation.navigate('Matches', { teams });
-              }}
+              onPress={() => navigation.navigate('Matches')}
               activeOpacity={0.7}
             >
               <Text style={styles.buttonText}>Manage Matches</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => navigation.navigate('FirebaseTest')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>Test Firebase Connection</Text>
             </TouchableOpacity>
           </View>
         )}

@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 export default function Login({ navigation }) {
   const { control, handleSubmit, formState: { errors }, reset } = useForm();
@@ -15,7 +17,7 @@ export default function Login({ navigation }) {
           if (loggedInEmail === 'admin@gmail.com') {
             navigation.replace('Admin');
           } else {
-            navigation.replace('Home');
+            navigation.replace('Main');
           }
         }
       } catch (error) {
@@ -27,39 +29,25 @@ export default function Login({ navigation }) {
 
   const onSubmit = async (data) => {
     try {
-      const storedUsers = await AsyncStorage.getItem('users');
-      const users = storedUsers ? JSON.parse(storedUsers) : [];
-
-      // Find user with matching email and password
-      const matchedUser = users.find(
-        user => user.email === data.email && user.password === data.password
-      );
-
-      if (matchedUser) {
-        // Store logged-in email in AsyncStorage
-        await AsyncStorage.setItem('loggedInEmail', data.email);
-        // Navigate based on email
-        if (data.email === 'admin@gmail.com') {
-          navigation.replace('Admin');
-        } else {
-          navigation.replace('Home');
-        }
+      // Authenticate user with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+      // Store logged-in email in AsyncStorage (for session)
+      await AsyncStorage.setItem('loggedInEmail', data.email);
+      // Navigate based on email
+      if (data.email === 'admin@gmail.com') {
+        navigation.replace('Admin');
       } else {
-        Alert.alert('Login Failed', 'Invalid email or password');
+        navigation.replace('Main');
       }
     } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
-    }
-  };
-
-  // Logout function to clear session
-  const handleLogout = async () => {
-    try {
-      await AsyncStorage.removeItem('loggedInEmail');
-      reset(); // Clear form fields
-      navigation.replace('Login'); // Navigate back to login
-    } catch (error) {
-      console.error('Error logging out:', error);
+      let message = 'Something went wrong. Please try again.';
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = 'Invalid email or password';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Invalid email address.';
+      }
+      Alert.alert('Login Failed', message);
     }
   };
 
@@ -78,7 +66,7 @@ export default function Login({ navigation }) {
               placeholder="Email"
               style={styles.input}
               onChangeText={onChange}
-              value={value}
+              value={value ??  ''}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -96,7 +84,7 @@ export default function Login({ navigation }) {
               secureTextEntry
               style={styles.input}
               onChangeText={onChange}
-              value={value}
+              value={value ?? ''}
             />
           )}
         />

@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth, db } from '../firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignUp({ navigation }) {
   const { control, handleSubmit, watch, formState: { errors } } = useForm();
@@ -14,27 +17,28 @@ export default function SignUp({ navigation }) {
         return;
       }
 
-      // Get existing users from AsyncStorage
-      const storedUsers = await AsyncStorage.getItem('users');
-      let users = storedUsers ? JSON.parse(storedUsers) : [];
+      // Register user with Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
 
-      // Check if email already exists
-      if (users.some(user => user.email === data.email)) {
-        Alert.alert('Error', 'This email is already registered. Please log in or use a different email.');
-        return;
-      }
-
-      // Add new user to the array
-      const newUser = { email: data.email, password: data.password };
-      users = [...users, newUser];
-
-      // Save updated users array to AsyncStorage
-      await AsyncStorage.setItem('users', JSON.stringify(users));
+      // Optionally store user info in Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        email: data.email,
+        createdAt: new Date().toISOString(),
+      });
 
       Alert.alert('Success', 'Account created. Please login.');
       navigation.navigate('Login');
     } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      let message = 'Something went wrong. Please try again.';
+      if (error.code === 'auth/email-already-in-use') {
+        message = 'This email is already registered. Please log in or use a different email.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'Invalid email address.';
+      } else if (error.code === 'auth/weak-password') {
+        message = 'Password should be at least 6 characters.';
+      }
+      Alert.alert('Error', message);
     }
   };
 

@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, FlatList, Alert, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db } from '../../firebase';
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import Footer from './Footer';
 
 export default function AllTeams({ navigation }) {
   const [teams, setTeams] = useState([]);
   const [listKey, setListKey] = useState(Date.now().toString());
 
-  // Fetch teams from AsyncStorage
+  // Fetch teams from Firestore
   const fetchTeams = useCallback(async () => {
     try {
-      const storedTeams = await AsyncStorage.getItem('teams');
-      setTeams(storedTeams ? JSON.parse(storedTeams) : []);
+      const teamsRef = collection(db, 'teams');
+      const querySnapshot = await getDocs(teamsRef);
+      const teamsData = [];
+      querySnapshot.forEach((doc) => {
+        teamsData.push({ id: doc.id, ...doc.data() });
+      });
+      setTeams(teamsData);
       setListKey(Date.now().toString());
     } catch (error) {
       console.error('Error fetching teams:', error);
@@ -25,20 +31,8 @@ export default function AllTeams({ navigation }) {
     return unsubscribe;
   }, [fetchTeams, navigation]);
 
-  // Save teams to AsyncStorage
-  const saveTeams = useCallback(async (updatedTeams) => {
-    try {
-      await AsyncStorage.setItem('teams', JSON.stringify(updatedTeams));
-      setTeams([...updatedTeams]);
-      setListKey(Date.now().toString());
-    } catch (error) {
-      console.error('Error saving teams:', error);
-      Alert.alert('Error', 'Failed to save teams. Please try again.');
-    }
-  }, []);
-
-  // Delete team
-  const removeTeam = useCallback((teamId, teamName) => {
+  // Delete team from Firestore
+  const removeTeam = useCallback(async (teamId, teamName) => {
     Alert.alert(
       'Confirm Delete',
       'Are you sure you want to delete this team?',
@@ -48,14 +42,24 @@ export default function AllTeams({ navigation }) {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const updatedTeams = teams.filter(team => team.id !== teamId);
-            await saveTeams(updatedTeams);
-            Alert.alert('Success', `You have deleted the team: ${teamName}`);
+            try {
+              const teamRef = doc(db, 'teams', teamId);
+              await deleteDoc(teamRef);
+              
+              // Update local state
+              const updatedTeams = teams.filter(team => team.id !== teamId);
+              setTeams(updatedTeams);
+              setListKey(Date.now().toString());
+              Alert.alert('Success', `You have deleted the team: ${teamName}`);
+            } catch (error) {
+              console.error('Error deleting team:', error);
+              Alert.alert('Error', 'Failed to delete team. Please try again.');
+            }
           },
         },
       ]
     );
-  }, [teams, saveTeams]);
+  }, [teams]);
 
   const renderTeamItem = ({ item }) => (
     <View style={styles.teamCard}>

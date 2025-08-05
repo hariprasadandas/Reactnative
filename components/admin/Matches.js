@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, FlatList, TextInput, Modal, ScrollView, Alert, StyleSheet, TextInput as RNTextInput } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db } from '../../firebase';
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import Footer from './Footer';
 
 export default function Matches({ route, navigation }) {
@@ -36,13 +37,18 @@ export default function Matches({ route, navigation }) {
   const teamModalRef = useRef(null);
   const detailsModalRef = useRef(null);
 
+  // Fetch teams from Firestore
   const fetchTeams = useCallback(async () => {
     try {
-      const storedTeams = await AsyncStorage.getItem('teams');
-      const parsedTeams = storedTeams ? JSON.parse(storedTeams) : [];
-      if (JSON.stringify(parsedTeams) !== JSON.stringify(teams)) {
-        setTeams(parsedTeams);
-        console.log('Matches: Teams fetched and updated:', parsedTeams.length);
+      const teamsRef = collection(db, 'teams');
+      const querySnapshot = await getDocs(teamsRef);
+      const teamsData = [];
+      querySnapshot.forEach((doc) => {
+        teamsData.push({ id: doc.id, ...doc.data() });
+      });
+      if (JSON.stringify(teamsData) !== JSON.stringify(teams)) {
+        setTeams(teamsData);
+        console.log('Matches: Teams fetched and updated:', teamsData.length);
       } else {
         console.log('Matches: Teams fetched, no state update needed.');
       }
@@ -52,13 +58,18 @@ export default function Matches({ route, navigation }) {
     }
   }, [teams]);
 
+  // Fetch matches from Firestore
   const fetchMatches = useCallback(async () => {
     try {
-      const storedMatches = await AsyncStorage.getItem('matches');
-      const parsedMatches = storedMatches ? JSON.parse(storedMatches) : [];
-      if (JSON.stringify(parsedMatches) !== JSON.stringify(matches)) {
-        setMatches(parsedMatches);
-        console.log('Matches: Matches fetched and updated:', parsedMatches.length);
+      const matchesRef = collection(db, 'matches');
+      const querySnapshot = await getDocs(matchesRef);
+      const matchesData = [];
+      querySnapshot.forEach((doc) => {
+        matchesData.push({ id: doc.id, ...doc.data() });
+      });
+      if (JSON.stringify(matchesData) !== JSON.stringify(matches)) {
+        setMatches(matchesData);
+        console.log('Matches: Matches fetched and updated:', matchesData.length);
       } else {
         console.log('Matches: Matches fetched, no state update needed.');
       }
@@ -68,18 +79,78 @@ export default function Matches({ route, navigation }) {
     }
   }, [matches]);
 
-  const saveMatches = useCallback(async (updatedMatches) => {
-    console.log("Matches: saveMatches called with:", updatedMatches.length, "matches.");
+  // Save match to Firestore
+  const saveMatch = useCallback(async (matchData) => {
+    console.log("saveMatch called with:", matchData);
     try {
-      await AsyncStorage.setItem('matches', JSON.stringify(updatedMatches));
+      const matchesRef = collection(db, 'matches');
+      console.log("Firestore collection ref created:", matchesRef.path);
+      const docRef = await addDoc(matchesRef, {
+        ...matchData,
+        createdAt: new Date().toISOString(),
+        status: 'scheduled'
+      });
+      console.log("Match saved! Firestore doc ID:", docRef.id);
+
+      // Update local state
+      const newMatch = { id: docRef.id, ...matchData, createdAt: new Date().toISOString(), status: 'scheduled' };
+      const updatedMatches = [...matches, newMatch];
       setMatches(updatedMatches);
       setListKey(Date.now().toString());
-      console.log("Matches: Matches saved to AsyncStorage and state updated successfully.");
+      console.log("Local state updated with new match:", newMatch);
+      return true; // Return success
     } catch (error) {
-      console.error('Matches: Error saving matches:', error);
-      Alert.alert('Error', 'Failed to save matches. Please try again.');
+      console.error('Matches: Error saving match:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      Alert.alert('Error', `Failed to save match: ${error.message}`);
+      return false; // Return failure
     }
-  }, []);
+  }, [matches]);
+
+  // Update match in Firestore
+  const updateMatch = useCallback(async (matchId, updatedData) => {
+    try {
+      const matchRef = doc(db, 'matches', matchId);
+      await updateDoc(matchRef, {
+        ...updatedData,
+        updatedAt: new Date().toISOString()
+      });
+      
+      // Update local state
+      const updatedMatches = matches.map(match =>
+        match.id === matchId
+          ? { ...match, ...updatedData, updatedAt: new Date().toISOString() }
+          : match
+      );
+      setMatches(updatedMatches);
+      setListKey(Date.now().toString());
+      console.log("Matches: Match updated in Firestore and state updated successfully.");
+    } catch (error) {
+      console.error('Matches: Error updating match:', error);
+      Alert.alert('Error', 'Failed to update match. Please try again.');
+    }
+  }, [matches]);
+
+  // Delete match from Firestore
+  const deleteMatch = useCallback(async (matchId) => {
+    try {
+      const matchRef = doc(db, 'matches', matchId);
+      await deleteDoc(matchRef);
+      
+      // Update local state
+      const updatedMatches = matches.filter(match => match.id !== matchId);
+      setMatches(updatedMatches);
+      setListKey(Date.now().toString());
+      console.log("Matches: Match deleted from Firestore and state updated successfully.");
+    } catch (error) {
+      console.error('Matches: Error deleting match:', error);
+      Alert.alert('Error', 'Failed to delete match. Please try again.');
+    }
+  }, [matches]);
 
   useEffect(() => {
     console.log('Matches: Setting up navigation focus listener.');
@@ -109,7 +180,7 @@ export default function Matches({ route, navigation }) {
     }
   }, [modalVisible, editMatchModalVisible, teamSelectModalVisible, matchDetailsModalVisible]);
 
-  const addMatch = useCallback(() => {
+  const addMatch = useCallback(async () => {
     console.log("Matches: addMatch function called!");
     if (!newMatchName.trim() || !newMatchGround.trim() || !newMatchDate.trim() || !newMatchTeam1 || !newMatchTeam2) {
       Alert.alert('Error', 'Please fill all fields and select two different teams');
@@ -132,7 +203,6 @@ export default function Matches({ route, navigation }) {
     console.log("Matches: All validations passed for adding match.");
 
     const newMatch = {
-      id: Date.now().toString(),
       name: newMatchName.trim(),
       ground: newMatchGround.trim(),
       date: newMatchDate.trim(),
@@ -140,17 +210,22 @@ export default function Matches({ route, navigation }) {
       team2: newMatchTeam2,
     };
 
-    saveMatches([...matches, newMatch]);
-
-    setNewMatchName('');
-    setNewMatchGround('');
-    setNewMatchDate('');
-    setNewMatchTeam1('');
-    setNewMatchTeam2('');
-    setModalVisible(false);
-    Alert.alert('Success', `Match "${newMatch.name}" added successfully!`);
-    console.log("Matches: Match added and modal closed.");
-  }, [newMatchName, newMatchGround, newMatchDate, newMatchTeam1, newMatchTeam2, matches, saveMatches]);
+    console.log("Matches: Attempting to save match to Firestore...");
+    const success = await saveMatch(newMatch);
+    
+    if (success) {
+      setNewMatchName('');
+      setNewMatchGround('');
+      setNewMatchDate('');
+      setNewMatchTeam1('');
+      setNewMatchTeam2('');
+      setModalVisible(false);
+      Alert.alert('Success', `Match "${newMatch.name}" added successfully!`);
+      console.log("Matches: Match added and modal closed.");
+    } else {
+      console.log("Matches: Failed to save match, modal remains open.");
+    }
+  }, [newMatchName, newMatchGround, newMatchDate, newMatchTeam1, newMatchTeam2, matches, saveMatch]);
 
   const editMatch = useCallback(() => {
     console.log("Matches: editMatch function called!");
@@ -190,23 +265,18 @@ export default function Matches({ route, navigation }) {
 
     console.log("Matches: All edit validations passed. Attempting to save edited match.");
 
-    const updatedMatches = matches.map(match =>
-      match.id === selectedMatch.id
-        ? {
-          ...match,
-          name: editMatchName.trim(),
-          ground: editMatchGround.trim(),
-          date: editMatchDate.trim(),
-          team1: editMatchTeam1,
-          team2: editMatchTeam2
-        }
-        : match
-    );
-    saveMatches(updatedMatches);
+    const updatedMatch = {
+      name: editMatchName.trim(),
+      ground: editMatchGround.trim(),
+      date: editMatchDate.trim(),
+      team1: editMatchTeam1,
+      team2: editMatchTeam2
+    };
+    updateMatch(selectedMatch.id, updatedMatch);
     setEditMatchModalVisible(false);
     Alert.alert('Success', `Match "${editMatchName.trim()}" updated successfully!`);
     console.log("Matches: Match edited and modal closed.");
-  }, [editMatchName, editMatchGround, editMatchDate, editMatchTeam1, editMatchTeam2, selectedMatch, matches, saveMatches]);
+  }, [editMatchName, editMatchGround, editMatchDate, editMatchTeam1, editMatchTeam2, selectedMatch, matches, updateMatch]);
 
   const removeMatch = useCallback((matchId, matchName) => {
     Alert.alert(
@@ -219,15 +289,14 @@ export default function Matches({ route, navigation }) {
           style: 'destructive',
           onPress: async () => {
             console.log(`Matches: Attempting to delete match with ID: ${matchId}`);
-            const updatedMatches = matches.filter(match => match.id !== matchId);
-            await saveMatches(updatedMatches);
+            await deleteMatch(matchId);
             Alert.alert('Success', `You have deleted the match: ${matchName}`);
             console.log(`Matches: Match ${matchName} deleted successfully.`);
           },
         },
       ]
     );
-  }, [matches, saveMatches]);
+  }, [deleteMatch]);
 
   const selectTeam = useCallback((teamName) => {
     console.log(`Matches: Selected team: ${teamName} for ${isTeam1Selection ? 'Team 1' : 'Team 2'} (Add Match)`);
@@ -296,252 +365,121 @@ export default function Matches({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerSection}>
-          <Text style={styles.headerTitle}>🏏 Manage Matches</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => {
-            console.log("Matches: Add New Match button pressed!");
-            if (teams.length < 2) {
-              Alert.alert('Error', 'You need at least two teams to create a match. Please create more teams first.');
-              return;
-            }
-            setNewMatchName('');
-            setNewMatchGround('');
-            setNewMatchDate('');
-            setNewMatchTeam1('');
-            setNewMatchTeam2('');
-            setModalVisible(true);
-          }}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.buttonText}>Add New Match</Text>
-        </TouchableOpacity>
-
-        <FlatList
-          data={matches}
-          renderItem={renderMatchItem}
-          keyExtractor={(item) => item.id}
-          key={listKey}
-          extraData={listKey}
-          ListEmptyComponent={<Text style={styles.emptyText}>No matches found. Add a new match!</Text>}
-        />
-
-        {/* Add New Match Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={modalVisible}
-          onRequestClose={() => {
-            console.log('Matches: Add Match Modal closed via request.');
-            setModalVisible(false);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Add New Match</Text>
-              <TextInput
-                ref={addModalRef}
-                style={styles.input}
-                placeholder="Enter match name"
-                value={newMatchName}
-                onChangeText={setNewMatchName}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter ground name"
-                value={newMatchGround}
-                onChangeText={setNewMatchGround}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter date (DD-MM-YYYY)"
-                value={newMatchDate}
-                onChangeText={setNewMatchDate}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => {
-                  if (teams.length === 0) {
-                    Alert.alert('Error', 'No teams available to select.');
-                    return;
-                  }
-                  setIsTeam1Selection(true);
-                  setTeamSelectModalVisible(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={newMatchTeam1 ? styles.inputText : styles.placeholderText}>
-                  {newMatchTeam1 || 'Select Team 1'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => {
-                  if (teams.length === 0) {
-                    Alert.alert('Error', 'No teams available to select.');
-                    return;
-                  }
-                  setIsTeam1Selection(false);
-                  setTeamSelectModalVisible(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={newMatchTeam2 ? styles.inputText : styles.placeholderText}>
-                  {newMatchTeam2 || 'Select Team 2'}
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={addMatch}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.buttonText}>Add Match</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    console.log('Matches: Add Match Modal Cancelled.');
-                    setModalVisible(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.buttonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
+      <FlatList
+        ListHeaderComponent={
+          <>
+            <View style={styles.headerSection}>
+              <Text style={styles.headerTitle}>🏏 Manage Matches</Text>
             </View>
-          </View>
-        </Modal>
-
-        {/* Edit Match Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={editMatchModalVisible}
-          onRequestClose={() => {
-            console.log('Matches: Edit Match Modal closed via request.');
-            setEditMatchModalVisible(false);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Edit Match</Text>
-              <TextInput
-                ref={editModalRef}
-                style={styles.input}
-                placeholder="Enter match name"
-                value={editMatchName}
-                onChangeText={setEditMatchName}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter ground name"
-                value={editMatchGround}
-                onChangeText={setEditMatchGround}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter date (DD-MM-YYYY)"
-                value={editMatchDate}
-                onChangeText={setEditMatchDate}
-                keyboardType="numeric"
-                maxLength={10}
-              />
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => {
+                console.log("Matches: Add New Match button pressed!");
+                if (teams.length < 2) {
+                  Alert.alert('Error', 'You need at least two teams to create a match. Please create more teams first.');
+                  return;
+                }
+                setNewMatchName('');
+                setNewMatchGround('');
+                setNewMatchDate('');
+                setNewMatchTeam1('');
+                setNewMatchTeam2('');
+                setModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>Add New Match</Text>
+            </TouchableOpacity>
+          </>
+        }
+        data={matches}
+        renderItem={renderMatchItem}
+        keyExtractor={(item) => item.id}
+        key={listKey}
+        extraData={listKey}
+        ListEmptyComponent={<Text style={styles.emptyText}>No matches found. Add a new match!</Text>}
+        contentContainerStyle={styles.scrollContent}
+      />
+      {/* Modals */}
+      {/* Add New Match Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => {
+          console.log('Matches: Add Match Modal closed via request.');
+          setModalVisible(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add New Match</Text>
+            <TextInput
+              ref={addModalRef}
+              style={styles.input}
+              placeholder="Enter match name"
+              value={newMatchName}
+              onChangeText={setNewMatchName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter ground name"
+              value={newMatchGround}
+              onChangeText={setNewMatchGround}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter date (DD-MM-YYYY)"
+              value={newMatchDate}
+              onChangeText={setNewMatchDate}
+              keyboardType="numeric"
+              maxLength={10}
+            />
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => {
+                if (teams.length === 0) {
+                  Alert.alert('Error', 'No teams available to select.');
+                  return;
+                }
+                setIsTeam1Selection(true);
+                setTeamSelectModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={newMatchTeam1 ? styles.inputText : styles.placeholderText}>
+                {newMatchTeam1 || 'Select Team 1'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => {
+                if (teams.length === 0) {
+                  Alert.alert('Error', 'No teams available to select.');
+                  return;
+                }
+                setIsTeam1Selection(false);
+                setTeamSelectModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={newMatchTeam2 ? styles.inputText : styles.placeholderText}>
+                {newMatchTeam2 || 'Select Team 2'}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.input}
-                onPress={() => {
-                  if (teams.length === 0) {
-                    Alert.alert('Error', 'No teams available to select.');
-                    return;
-                  }
-                  setIsTeam1Selection(true);
-                  setTeamSelectModalVisible(true);
-                }}
+                style={styles.addButton}
+                onPress={addMatch}
                 activeOpacity={0.7}
               >
-                <Text style={editMatchTeam1 ? styles.inputText : styles.placeholderText}>
-                  {editMatchTeam1 || 'Select Team 1'}
-                </Text>
+                <Text style={styles.buttonText}>Add Match</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => {
-                  if (teams.length === 0) {
-                    Alert.alert('Error', 'No teams available to select.');
-                    return;
-                  }
-                  setIsTeam1Selection(false);
-                  setTeamSelectModalVisible(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={editMatchTeam2 ? styles.inputText : styles.placeholderText}>
-                  {editMatchTeam2 || 'Select Team 2'}
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={editMatch}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.buttonText}>Save</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    console.log('Matches: Edit Match Modal Cancelled.');
-                    setEditMatchModalVisible(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.buttonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Team Selection Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={teamSelectModalVisible}
-          onRequestClose={() => {
-            console.log('Matches: Team Select Modal closed via request.');
-            setTeamSelectModalVisible(false);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Select Team</Text>
-              <ScrollView style={{ maxHeight: 200 }}>
-                {teams.length > 0 ? (
-                  teams.map(team => (
-                    <TouchableOpacity
-                      key={team.id}
-                      style={styles.teamOption}
-                      onPress={() => (editMatchModalVisible ? selectEditTeam(team.name) : selectTeam(team.name))}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.teamOptionText}>{team.name}</Text>
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text style={styles.emptyText}>No teams available</Text>
-                )}
-              </ScrollView>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
-                  console.log('Matches: Team Select Modal Cancelled.');
-                  setTeamSelectModalVisible(false);
+                  console.log('Matches: Add Match Modal Cancelled.');
+                  setModalVisible(false);
                 }}
                 activeOpacity={0.7}
               >
@@ -549,43 +487,175 @@ export default function Matches({ route, navigation }) {
               </TouchableOpacity>
             </View>
           </View>
-        </Modal>
+        </View>
+      </Modal>
 
-        {/* Match Details Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={matchDetailsModalVisible}
-          onRequestClose={() => {
-            console.log('Matches: Match Details Modal closed via request.');
-            setMatchDetailsModalVisible(false);
-          }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Match Details</Text>
-              {selectedMatch && (
-                <View style={styles.card}>
-                  <Text style={styles.matchName}>{selectedMatch.name}</Text>
-                  <Text style={styles.matchGround}>Ground: {selectedMatch.ground}</Text>
-                  <Text style={styles.matchDate}>Date: {selectedMatch.date}</Text>
-                  <Text style={styles.matchTeams}>Teams: {selectedMatch.team1} vs {selectedMatch.team2}</Text>
-                </View>
-              )}
+      {/* Edit Match Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editMatchModalVisible}
+        onRequestClose={() => {
+          console.log('Matches: Edit Match Modal closed via request.');
+          setEditMatchModalVisible(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Match</Text>
+            <TextInput
+              ref={editModalRef}
+              style={styles.input}
+              placeholder="Enter match name"
+              value={editMatchName}
+              onChangeText={setEditMatchName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter ground name"
+              value={editMatchGround}
+              onChangeText={setEditMatchGround}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter date (DD-MM-YYYY)"
+              value={editMatchDate}
+              onChangeText={setEditMatchDate}
+              keyboardType="numeric"
+              maxLength={10}
+            />
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => {
+                if (teams.length === 0) {
+                  Alert.alert('Error', 'No teams available to select.');
+                  return;
+                }
+                setIsTeam1Selection(true);
+                setTeamSelectModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={editMatchTeam1 ? styles.inputText : styles.placeholderText}>
+                {editMatchTeam1 || 'Select Team 1'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => {
+                if (teams.length === 0) {
+                  Alert.alert('Error', 'No teams available to select.');
+                  return;
+                }
+                setIsTeam1Selection(false);
+                setTeamSelectModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={editMatchTeam2 ? styles.inputText : styles.placeholderText}>
+                {editMatchTeam2 || 'Select Team 2'}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={editMatch}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.buttonText}>Save</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
-                  console.log('Matches: Match Details Modal Closed.');
-                  setMatchDetailsModalVisible(false);
+                  console.log('Matches: Edit Match Modal Cancelled.');
+                  setEditMatchModalVisible(false);
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.buttonText}>Close</Text>
+                <Text style={styles.buttonText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </Modal>
-      </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Team Selection Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={teamSelectModalVisible}
+        onRequestClose={() => {
+          console.log('Matches: Team Select Modal closed via request.');
+          setTeamSelectModalVisible(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Team</Text>
+            <ScrollView style={{ maxHeight: 200 }}>
+              {teams.length > 0 ? (
+                teams.map(team => (
+                  <TouchableOpacity
+                    key={team.id}
+                    style={styles.teamOption}
+                    onPress={() => (editMatchModalVisible ? selectEditTeam(team.name) : selectTeam(team.name))}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.teamOptionText}>{team.name}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <Text style={styles.emptyText}>No teams available</Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                console.log('Matches: Team Select Modal Cancelled.');
+                setTeamSelectModalVisible(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Match Details Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={matchDetailsModalVisible}
+        onRequestClose={() => {
+          console.log('Matches: Match Details Modal closed via request.');
+          setMatchDetailsModalVisible(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Match Details</Text>
+            {selectedMatch && (
+              <View style={styles.card}>
+                <Text style={styles.matchName}>{selectedMatch.name}</Text>
+                <Text style={styles.matchGround}>Ground: {selectedMatch.ground}</Text>
+                <Text style={styles.matchDate}>Date: {selectedMatch.date}</Text>
+                <Text style={styles.matchTeams}>Teams: {selectedMatch.team1} vs {selectedMatch.team2}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                console.log('Matches: Match Details Modal Closed.');
+                setMatchDetailsModalVisible(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.buttonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <Footer />
     </SafeAreaView>
   );
