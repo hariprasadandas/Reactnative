@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView, FlatList, TextInput, Modal, Alert, StyleSheet } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db } from '../../firebase';
+import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import Footer from './Footer';
 
 export default function ManageTeams({ route, navigation }) {
@@ -15,16 +16,33 @@ export default function ManageTeams({ route, navigation }) {
   const [editTeamName, setEditTeamName] = useState(team?.name || '');
   const [listKey, setListKey] = useState(Date.now().toString());
 
-  // Fetch teams from AsyncStorage
+  // Fetch teams from Firestore
   const fetchTeams = useCallback(async () => {
     try {
-      const storedTeams = await AsyncStorage.getItem('teams');
-      const parsedTeams = storedTeams ? JSON.parse(storedTeams) : [];
-      setTeams(parsedTeams);
+      console.log('Fetching teams from Firestore...');
+      const teamsRef = collection(db, 'teams');
+      console.log('Teams collection reference created');
+      
+      const querySnapshot = await getDocs(teamsRef);
+      console.log('Query snapshot received, size:', querySnapshot.size);
+      
+      const teamsData = [];
+      querySnapshot.forEach((doc) => {
+        console.log('Processing team document:', doc.id, doc.data());
+        teamsData.push({ id: doc.id, ...doc.data() });
+      });
+      
+      console.log('Final teams data:', teamsData);
+      setTeams(teamsData);
       setListKey(Date.now().toString());
     } catch (error) {
-      console.error('Error fetching teams:', error);
-      Alert.alert('Error', 'Failed to load teams. Please try again.');
+      console.error('Error fetching teams from Firestore:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      Alert.alert('Error', `Failed to load teams: ${error.message}`);
     }
   }, []);
 
@@ -34,20 +52,8 @@ export default function ManageTeams({ route, navigation }) {
     return unsubscribe;
   }, [fetchTeams, navigation]);
 
-  // Save teams to AsyncStorage
-  const saveTeams = useCallback(async (updatedTeams) => {
-    try {
-      await AsyncStorage.setItem('teams', JSON.stringify(updatedTeams));
-      setTeams([...updatedTeams]);
-      setListKey(Date.now().toString());
-    } catch (error) {
-      console.error('Error saving teams:', error);
-      Alert.alert('Error', 'Failed to save teams. Please try again.');
-    }
-  }, []);
-
-  // Add new team
-  const addTeam = useCallback(() => {
+  // Add new team to Firestore
+  const addTeam = useCallback(async () => {
     if (!newTeamName.trim()) {
       Alert.alert('Error', 'Please enter a team name');
       return;
@@ -56,14 +62,40 @@ export default function ManageTeams({ route, navigation }) {
       Alert.alert('Error', 'Team name already exists');
       return;
     }
-    const newTeam = { id: Date.now().toString(), name: newTeamName, players: [], verified: false };
-    saveTeams([...teams, newTeam]);
-    setNewTeamName('');
-    setModalVisible(false);
-  }, [newTeamName, teams, saveTeams]);
+    
+    try {
+      console.log('Adding team to Firestore:', newTeamName.trim());
+      const teamsRef = collection(db, 'teams');
+      const newTeam = {
+        name: newTeamName.trim(),
+        players: [],
+        verified: false,
+        createdAt: new Date().toISOString()
+      };
+      console.log('Team data to save:', newTeam);
+      
+      const docRef = await addDoc(teamsRef, newTeam);
+      console.log('Team saved successfully with ID:', docRef.id);
+      
+      // Update local state
+      const updatedTeams = [...teams, { id: docRef.id, ...newTeam }];
+      setTeams(updatedTeams);
+      setNewTeamName('');
+      setModalVisible(false);
+      Alert.alert('Success', 'Team added successfully');
+    } catch (error) {
+      console.error('Error adding team to Firestore:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
+      Alert.alert('Error', `Failed to add team: ${error.message}`);
+    }
+  }, [newTeamName, teams]);
 
-  // Add player
-  const addPlayer = useCallback(() => {
+  // Add player to team in Firestore
+  const addPlayer = useCallback(async () => {
     if (!newPlayerName.trim()) {
       Alert.alert('Error', 'Please enter a player name');
       return;
@@ -77,19 +109,37 @@ export default function ManageTeams({ route, navigation }) {
       Alert.alert('Error', 'Player name already exists in this team');
       return;
     }
-    const updatedTeams = teams.map(team =>
-      team.id === selectedTeamId
-        ? { ...team, players: [...team.players, { id: Date.now().toString(), name: newPlayerName, verified: false }] }
-        : team
-    );
-    saveTeams(updatedTeams);
-    setNewPlayerName('');
-    setModalVisible(false);
-    setListKey(Date.now().toString());
-  }, [newPlayerName, selectedTeamId, teams, saveTeams]);
+    
+    try {
+      const teamRef = doc(db, 'teams', selectedTeamId);
+      const newPlayer = {
+        id: Date.now().toString(),
+        name: newPlayerName.trim(),
+        verified: false,
+        addedAt: new Date().toISOString()
+      };
+      const updatedPlayers = [...teamToUpdate.players, newPlayer];
+      await updateDoc(teamRef, { players: updatedPlayers });
+      
+      // Update local state
+      const updatedTeams = teams.map(team =>
+        team.id === selectedTeamId
+          ? { ...team, players: updatedPlayers }
+          : team
+      );
+      setTeams(updatedTeams);
+      setNewPlayerName('');
+      setModalVisible(false);
+      setListKey(Date.now().toString());
+      Alert.alert('Success', 'Player added successfully');
+    } catch (error) {
+      console.error('Error adding player:', error);
+      Alert.alert('Error', 'Failed to add player. Please try again.');
+    }
+  }, [newPlayerName, selectedTeamId, teams]);
 
-  // Edit team
-  const editTeam = useCallback(() => {
+  // Edit team in Firestore
+  const editTeam = useCallback(async () => {
     if (!editTeamName.trim()) {
       Alert.alert('Error', 'Please enter a team name');
       return;
@@ -98,15 +148,27 @@ export default function ManageTeams({ route, navigation }) {
       Alert.alert('Error', 'Team name already exists');
       return;
     }
-    const updatedTeams = teams.map(team =>
-      team.id === selectedTeam.id ? { ...team, name: editTeamName } : team
-    );
-    saveTeams(updatedTeams);
-    setEditTeamName('');
-    setEditTeamModalVisible(false);
-    setListKey(Date.now().toString());
-    navigation.goBack();
-  }, [editTeamName, selectedTeam, teams, saveTeams, navigation]);
+    
+    try {
+      const teamRef = doc(db, 'teams', selectedTeam.id);
+      await updateDoc(teamRef, { name: editTeamName.trim() });
+      
+      // Update local state
+      const updatedTeams = teams.map(team =>
+        team.id === selectedTeam.id
+          ? { ...team, name: editTeamName.trim() }
+          : team
+      );
+      setTeams(updatedTeams);
+      setEditTeamModalVisible(false);
+      setSelectedTeam(null);
+      setEditTeamName('');
+      Alert.alert('Success', 'Team updated successfully');
+    } catch (error) {
+      console.error('Error updating team:', error);
+      Alert.alert('Error', 'Failed to update team. Please try again.');
+    }
+  }, [editTeamName, selectedTeam, teams]);
 
   // Remove player
   const removePlayer = useCallback((teamId, playerId) => {
@@ -119,19 +181,29 @@ export default function ManageTeams({ route, navigation }) {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const updatedTeams = teams.map(team =>
-              team.id === teamId
-                ? { ...team, players: team.players.filter(player => player.id !== playerId) }
-                : team
-            );
-            await saveTeams(updatedTeams);
-            Alert.alert('Success', 'Player removed successfully');
-            setListKey(Date.now().toString());
+            try {
+              const teamRef = doc(db, 'teams', teamId);
+              const updatedPlayers = teams.find(team => team.id === teamId).players.filter(player => player.id !== playerId);
+              await updateDoc(teamRef, { players: updatedPlayers });
+              
+              // Update local state
+              const updatedTeams = teams.map(team =>
+                team.id === teamId
+                  ? { ...team, players: updatedPlayers }
+                  : team
+              );
+              setTeams(updatedTeams);
+              Alert.alert('Success', 'Player removed successfully');
+              setListKey(Date.now().toString());
+            } catch (error) {
+              console.error('Error removing player:', error);
+              Alert.alert('Error', 'Failed to remove player. Please try again.');
+            }
           },
         },
       ]
     );
-  }, [teams, saveTeams]);
+  }, [teams]);
 
   const renderPlayerItem = ({ item, teamId }) => (
     <View style={styles.playerCard}>
@@ -195,7 +267,11 @@ export default function ManageTeams({ route, navigation }) {
         <>
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => setModalVisible(true)}
+            onPress={() => {
+              setSelectedTeamId(null);
+              setNewPlayerName('');
+              setModalVisible(true);
+            }}
             activeOpacity={0.7}
           >
             <Text style={styles.buttonText}>Add New Team</Text>
@@ -235,7 +311,11 @@ export default function ManageTeams({ route, navigation }) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cancelButton}
-                onPress={() => setModalVisible(false)}
+                onPress={() => {
+                  setModalVisible(false);
+                  setSelectedTeamId(null);
+                  setNewPlayerName('');
+                }}
                 activeOpacity={0.7}
               >
                 <Text style={styles.buttonText}>Cancel</Text>
